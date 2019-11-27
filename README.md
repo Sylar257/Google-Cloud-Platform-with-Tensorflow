@@ -36,7 +36,7 @@ When working with large datasets, it’s usually not idea to have everything sto
 
 We can investigate our dataset using a portion of our data. Of course, in reality, we should a bigger volume and make sure to randomly sample them in order to obtain a close estimation of true distribution.
 
-Next up, we can create a handy function that allows us to run **SQL** queries on the entire dataset retrieving only the information that we want to investigate:
+Next up, we can create a handy function that allows us to run **SQL** queries on the entire dataset retrieving only the information that we want to investigate. This helps us to build an intuition of how different **features** correlates with our dependent variable, thus allow us to have a good understanding when choosing the right feature to build our dataset/model later on.
 
 ```python
 # Create a function that finds any one of the feature's corelation with average weight and number of babies
@@ -65,4 +65,61 @@ For instance, we take take a look at the co-relation between the `mother_age` an
 and also theco-relation between the `plurality` and `num_babies` & `avg_wt`.
 
 ![Investigate_plurality](images/Investigate_plurality.png)
+
+## Creating our dataset
+
+#### Criterion of a good feature
+
+When creating a dataset for our machine model, we don’t have to use all of the features comes with the original source. We have the freedom to pick the most “relevant” features or to compose new one based on old features, both of these two steps might have a positive impact on our model’s performance.
+
+What *features* should we consider to incorporate:
+
+*   Be related to the **objective**
+
+*   Be known at **prediction-time**
+*   Be **numeric** with meaningful magnitude(or we should do the feature engineering for conversion)
+*   Have enough examples
+*   Bring human insight to the problem
+
+#### `FARM_FINGERPRINT(value)`
+
+This is a **Hash Function** in SQL that takes in a value(such as a *date* or a *string*) and computes the *fingerprint* of it(output format is **hashed numeric type**. *The output of this function for a particular input will never change*. Which means, `FARM_FINGERPRINT('26-jan-2012')` is always going to return the same value whenever we call.(and it’s different from calling on all other values)
+
+Here is a example of usage:
+
+```sql
+#standardSQL
+SELECT
+	data,
+	airline,
+	departure_airport,
+	departure_schedule,
+	arrival_airport,
+	arrival_delay
+FROM
+	`bigquery-samples.airline_ontime_data.flights`
+WHERE
+	MOD(ABS(FARM_FINGERPRINT(date)),10)<8
+```
+
+The last line, would give us **randomly** sampled 80% of data. In addition, we can assign `MOD(ABS(FARM_FINGERPRINT(date)),10)=8` to **valid_set** and `MOD(ABS(FARM_FINGERPRINT(date)),10)=9` to **test_set**, so that we have a randomly spitted 80%-10%-10% dataset where **the same date will not appear in different set bracket** so as to avoid data leakage.
+
+Here is another trick: when dealing with large datasets, we should always be prototyping on a small(randomly sampled) fraction of the entire dataset so that we can iterate fast. Once we have finalized the model design then we deploy the model on the entire original dataset. `RAND()` can easily help us to do just that:
+
+```SQL
+#standardSQL
+SELECT
+	data,
+	airline,
+	departure_airport,
+	departure_schedule,
+	arrival_airport,
+	arrival_delay
+FROM
+	`bigquery-samples.airline_ontime_data.flights`
+WHERE
+	MOD(ABS(FARM_FINGERPRINT(date)),10)<8 AND RAND() < 0.01
+```
+
+The `RAND()` will generate a random number between `0` and `1` each time, and we are only keeping the query data if the value is smaller than 0.01 which means it’s a 1% chance. Hence, we are getting 1% of the entire dataset.
 
