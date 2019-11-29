@@ -320,5 +320,40 @@ Benefits of Productionalize ML pipelines **elastically** with cloud dataflow:
 
 Above the an example of pipeline to read data from a data warehouse (say BigQuery); pre-process it, and store it in the Google Cloud Storage. Pipeline will only be run when `p.run()` is called.
 
+In the code example of this repo:
 
+```python
+# step is essentially the mode here, it takes value of 'train'/'eval'
+(p
+ | f'{step}_read' >> beam.io.Read(beam.io.BigQuerySource(query=selquery, use_standard_sql=True))
+ | f'{step}_csv' >> beam.FlatMap(to_csv)
+ | f'{step}_out' >> bem.io.Write(beam.io.WriteToText(os.path.join(OUTPUT_DIR, f'{step}.csv')))
+)
+```
+
+Going back to how we construct our `p` (pipeline):
+
+```python
+options = {
+      'staging_location': os.path.join(OUTPUT_DIR, 'tmp', 'staging'),
+      'temp_location': os.path.join(OUTPUT_DIR, 'tmp'),
+      'job_name': job_name,
+      'project': PROJECT,
+      'region': REGION,
+      'teardown_policy': 'TEARDOWN_ALWAYS',
+      'no_save_main_session': True,
+      'max_num_workers': 6
+  }
+  opts = beam.pipeline.PipelineOptions(flags = [], **options)
+  if in_test_mode:
+      RUNNER = 'DirectRunner'
+  else:
+      RUNNER = 'DataflowRunner'
+  p = beam.Pipeline(RUNNER, options = opts)
+```
+
+Remarks: 
+
+*   **`Direct Runner`** executes pipelines on your machine and is designed to validate that pipelines adhere to the Apache Beam model as closely as possible. 
+*   The **'DataflowRunner'** uses the Cloud Dataflow managed service. When you run your pipeline with the Cloud Dataflow service, the runner uploads your executable code and dependencies to a Google Cloud Storage bucket and creates a Cloud Dataflow job, which executes your pipeline on managed resources in Google Cloud Platform.
 
