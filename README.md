@@ -6,19 +6,15 @@
 
 [***Setup GCP***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#setup)
 
-[***Concepts***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Sequence-Labeling#concepts)
+[***Exploratory data analysis***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#eda)
 
-[***Exploratory data analysis***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Sequence-Labeling#eda)
+[***Creating dataset***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#dataset)
 
-[***Creating dataset***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Sequence-Labeling#dataset)
+[***Constructing TensorFlow model***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#creating_tf_model)
 
-[***Constructing TensorFlow model***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Sequence-Labeling#creating_tf_model)
-
-[***Operationalize model***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Sequence-Labeling#operationalize)
+[***Operationalize model***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#operationalize)
 
 
-
-Steps to set up fresh project workspace.
 
 ## Setup
 
@@ -313,7 +309,16 @@ model = tf.estimator.DNNLinearCombinedClassifier(
                                             dnn_hidden_units=[100,50] # hidden neurons in each layer)
 ```
 
-
-
 ## Operationalize
+
+Benefits of Productionalize ML pipelines **elastically** with cloud dataflow:
+
+*   Allow us to *process* and *transform* large amounts of data in **parallel** 
+*   It supports both **streaming** and **batch** jobs.
+
+![Apache_beam_pipeline](images/Apache_beam_pipeline.png)
+
+Above the an example of pipeline to read data from a data warehouse (say BigQuery); pre-process it, and store it in the Google Cloud Storage. Pipeline will only be run when `p.run()` is called.
+
+
 
