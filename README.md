@@ -311,6 +311,8 @@ model = tf.estimator.DNNLinearCombinedClassifier(
 
 ## Operationalize
 
+### Prepare dataset for training at scale
+
 Benefits of Productionalize ML pipelines **elastically** with cloud dataflow:
 
 *   Allow us to *process* and *transform* large amounts of data in **parallel** 
@@ -356,4 +358,48 @@ Remarks:
 
 *   **`Direct Runner`** executes pipelines on your machine and is designed to validate that pipelines adhere to the Apache Beam model as closely as possible. 
 *   The **'DataflowRunner'** uses the Cloud Dataflow managed service. When you run your pipeline with the Cloud Dataflow service, the runner uploads your executable code and dependencies to a Google Cloud Storage bucket and creates a Cloud Dataflow job, which executes your pipeline on managed resources in Google Cloud Platform.
+
+At this point, we basically have all the files we need that contain all the data(**at scale**) so that we can train our model in real time. The process is also fully automated so that we can simply *re-run the pipeline periodically to create a new training dataset on fresher data.*
+
+### Training model on dataset at scale
+
+Distributed training will be done in the **Cloud ML Engine** since we have millions of rows and training on a single machine is no longer a viable choice.
+
+In order to *submit code* to **ML Engine**, we will need a *TensorFlow model* to be **packaged up** as a Python package. A best practive is to split our code up across at least two file:
+
+*   By convention, we will call the file with `__main__` as `taks.py`. This file contain the code to **parse command-line arguments**. For all the parameter that we want it to be specified every time before running, we will make it a command-line argument.
+
+    ```python
+    parser.add_argument('--train_data_paths', required = True)
+    parser.add_argument('--train_steps,required = True')
+    ...
+    ```
+
+*   The over file, contains all of our TensorFlow code including the `train_and_evaluate()` loop is by convention called `model.py`.
+
+`taks.py` calls `model.py` and sends in the parsed arguments.
+
+![model_file_content](images/model_file_content.png)
+
+The above is the important contents needed for `model.py`. `serving_input_fn()` is needed to invoke our model and deploy it as a web service.
+
+```python
+gcloud ml-engine jobs submit training $JOBNAME \ 
+	--region=$REGION \
+    --module-name=trainer.task \
+    --job-dir=$OUTDIR
+    --staging-bucket=gs://$BUCKET_NAME \
+    --scale-tier=BASIC \ 
+    REST as before
+```
+
+we can also view and monitor training jobs with **GCP console**
+
+![monitoring_training_with_GCP_console](images/monitoring_training_with_GCP_console.png)
+
+### About `batch_size`
+
+We want our productionalize code to be able to change `batch_size`. In addition, since `training_steps` depend on `batch_size` & `num_training_examples`. It’s good if we can do this computation in our code to compute required `trainig_steps`. 
+
+It’s also important to make `hyper-parameters` as command-line parameters so that we can easily perform **running hyper-parameter tunning**.
 
