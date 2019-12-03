@@ -14,6 +14,10 @@
 
 [***Operationalize model***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#operationalize)
 
+[***BigQuery ML***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#BigQuery_ML)
+
+[***Serving model on GCP***](https://github.com/Sylar257/Google-Cloud-Platform-with-Tensorflow#serving_model)
+
 
 
 ## Setup
@@ -43,6 +47,8 @@ Click **Open JupyterLab**. A JupyterLab window will open in a new tab
 ![JupyterLab](https://cdn.qwiklabs.com/pwhtoT2OOAq8DamQHYjk1TYcoAuOQTwkoYM5qglV1AQ%3D)
 
 From here, you will have a **Jupyter notebook environment** set-up and running in GCP. Of course, we can clone our existing notebooks(e.g. from *github*) into this workspace.
+
+[Google Cloud Platform github repo](git clone https://github.com/GoogleCloudPlatform/training-data-analyst )
 
 ## EDA
 
@@ -403,3 +409,139 @@ We want our productionalize code to be able to change `batch_size`. In addition,
 
 It’s also important to make `hyper-parameters` as command-line parameters so that we can easily perform **running hyper-parameter tunning**.
 
+## BigQuery_ML
+
+The BigQuery team has built an amazing tool for us to perform **fast prototyping** inside *BigQuery* itself using just **SQL**. This is super super handy if we want to build simple models on big amounts of data with just a little time and minimum code Everything happens inside *BigQuery* nothing needs to be moved around.
+
+![BQML_overview](images/BQML_overview.png)
+
+What are the supported features:
+
+*   Standard SQL and UDFs within the ML queries
+*   Linear Regression (Forecasting)
+*   Binary Logistic Regression (Classification)
+*   Model evaluation functions for standard metrics such as **ROC** and **precision-recall** curves
+*   Model weight inspection
+*   **Feature distribution analysis** through standard functions
+
+### Steps to perform end-to-end BQML process
+
+1.  **Import** data into *BigQuery*. This could be BQ public dataset, Google marketing platform dataset or our own dataset
+
+2.  **Pre-process features**: minimum amount of feature engineering. Mostly clean-up and creating train/test splits.
+
+3.  Create model using **standardSQL**
+
+    ```sql
+    #standardSQL
+    CREATE MODEL
+    ecommerce.classification
+    OPTIONS
+    	(
+        model_type='logistic_reg',
+        input_label_cols=['will_buy_later'] 
+        )
+        AS
+    # SQL query with training data
+    ```
+
+4.  After training, we will see it as a **new dataset object** in *BigQuery*. Then we can execute `ML.EVALUATE(MODEL ...)` to evaluate the performance of the model against the eval-dataset.
+
+    ```sql
+    #standardSQL
+    SELECT
+    	roc_auc,
+    	accuracy,
+    	precision,
+    	recall
+    FROM
+    	ML.EVALUATE(MODEL ecommerce.classification)
+    #SQL query with ecal data
+    ```
+
+    
+
+5.  When we are happy with the performance of our model, we can then use it for **predictions** on unseen data. A new field will appear in the results after running this query.
+
+```sql
+#standardSQL
+SELECT * FROM
+	ML.PREDICT
+	(MODEL
+    ecommerce.classification,
+    )
+    #SQL query with test data
+```
+
+## Serving_model
+
+![training&prediction](images/training&prediction.png)
+
+Now we have stored our model parameters, graphs and other model information under `OUTPUT_DIR`. This save the model information containing our **serving input function** and **pre-processing pipeline** along with the actual model logic.
+
+ What we have to do to actually serve the model is to *point Cloud ML Engine* to the `OUTPUT_DIR` so that the clients can consume our model via a `REST API` call with input variables.
+
+In addition, we can use the training input function that we built earlier for serving. However, we  should take not that the data might need to be parsed different at *inference time*.(different data format and some of the features could be missing)![training_serving_input_function](images/training_serving_input_function.png)
+
+1.  The `serving_input_fn` specifies what the caller of the `predict()` method must provide:
+
+    ```python
+    def serving_input_fn():
+        feature_placeholder = {
+            'feat_1':tf.placeholder(tf.float32, [None]),
+            'feat_2':tf.placeholder(tf.float32,[None]),
+            'feat_3':tf.placeholder(tf.float32,[None])   
+        }
+        features = {
+            key: tf.expand_dim(tensor, -1)
+            for key, tensor in feature_placeholders.items()
+        }
+        return tf.estimator.export.ServingInputReceiver(features, feature_placeholders)
+    ```
+
+2.  **Deploy** a trained model to **GCP**
+
+    ```python
+    MODEL_NAME = "predict_price"
+    MODEL_VERSION = "v1"
+    # point ml-engine to the OUTPUT_DIR of model training
+    MODEL_LOCATION="gs://${BUCKET}/predict_price/smallinput/price_train/export/exporter/.../"
+    
+    gcloud ml-engine models create ${MODEL_NAME} --regions $REGION
+    gcloud ml-engine versions create ${MODEL_VERISON} --model ${MODEL_NAME} --origin ${MODEL_LOCATION}
+    ```
+
+3.  **Client** code for making **REST** calls:
+
+    ```python
+    credentials = GoogleCredentials.get_application_default()
+    # create service api with the specified model and version
+    api = discover.build('m1', 'v1', credentials=credentials, discoveryServiceUrl='https:storage.googleapis.com/cloud-ml/discovery/ml_v1beta1_discovery.json')
+    # example data in json format
+    request_data = [
+        {'feat_1': -73.4,
+         'feat_2':  45.3,
+         'feat_3': 123,3,
+         ...
+        }]
+    parent = 'projects/%s/models/%s/versions/%s' % ('cloud-training-demos', 'predict_price','v1')
+    response = api.projects().predict(body={'instance': request_data}, name=parent).execute()
+    ```
+
+    
+
+4.  Build an App-Engine app to serve ML predictions, which means, the end-user will have a nice graphical interface
+
+    ![UI_app_engine](images/UI_app_engine.png)
+
+    We will build an HTML form, a web **front-end** with slider bars, a drop down menu, a check box and a submit button. The submit button send a *specified data* over to a **Python flask application** that’s deployed into **App Engine**. This web application will convert the HTML form data into **JSON request** which is expected by our Machine learning model. Finally, **App Engine** get back the **JSON response** and sends it to the **front-end UI**.
+
+    ## Summary: end-to-end process to operationalize ML models
+
+    ![Summary](images/Summary.png)
+
+1.  Data exploration and visualization.
+2.  Work with a **subset** of the dataset to develop out **TensorFlow** model.
+3.  After prototyping our model, we use **Cloud Dataflow** to create our training and evaluation sets.
+4.  Using the **entire** dataset created by **Cloud Dataflow**, we then train our model using **Cloud ML Engine**.
+5.  With the trained model, we can serve up a prediction service that an end-user was able to consume via a **Flask application**.
